@@ -126,8 +126,13 @@ class EventPage extends StatelessWidget {
                     final eventData = event.data() as Map<String, dynamic>;
                     final eventName = eventData['name'];
                     final eventDate = (eventData['date'] as Timestamp).toDate();
+                    final eventTime = eventData['time'];
+                    final eventDescription = eventData['description'];
+                    final eventLocation = eventData['location'];
                     final acceptedUsers =
                         List<String>.from(eventData['accepted'] ?? []);
+                    final eventCreatorId =
+                        eventData['creatorId']; // Store creator ID
 
                     return Card(
                       margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -144,6 +149,11 @@ class EventPage extends StatelessWidget {
                             SizedBox(height: 4),
                             Text(
                                 'Date: ${DateFormat.yMMMd().format(eventDate)}'),
+                            Text('Time: $eventTime'),
+                            SizedBox(height: 8),
+                            Text('Location: $eventLocation'),
+                            SizedBox(height: 8),
+                            Text('Description: $eventDescription'),
                             SizedBox(height: 8),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -162,12 +172,18 @@ class EventPage extends StatelessWidget {
                                           _respondToEvent(eventId, false),
                                       child: Text('Decline'),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors
-                                            .red, // Correctly set color here
+                                        backgroundColor: Colors.red,
                                       ),
                                     ),
                                   ],
                                 ),
+                                // Show delete button only if the user is the creator of the event
+                                if (user.uid == eventCreatorId)
+                                  IconButton(
+                                    icon: Icon(Icons.delete),
+                                    onPressed: () => _deleteEvent(eventId),
+                                    color: Colors.red,
+                                  ),
                               ],
                             ),
                           ],
@@ -185,8 +201,7 @@ class EventPage extends StatelessWidget {
             },
             child: Text('Sign Out'),
             style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  Colors.blue, // Set color here, previously was 'primary'
+              backgroundColor: Colors.blue,
             ),
           ),
         ],
@@ -196,7 +211,10 @@ class EventPage extends StatelessWidget {
 
   void _createEvent(BuildContext context) {
     final _nameController = TextEditingController();
+    final _descriptionController = TextEditingController();
+    final _locationController = TextEditingController();
     DateTime? _selectedDate;
+    TimeOfDay? _selectedTime;
 
     showDialog(
       context: context,
@@ -211,6 +229,16 @@ class EventPage extends StatelessWidget {
                 decoration: InputDecoration(labelText: 'Event Name'),
               ),
               SizedBox(height: 10),
+              TextField(
+                controller: _descriptionController,
+                decoration: InputDecoration(labelText: 'Description'),
+              ),
+              SizedBox(height: 10),
+              TextField(
+                controller: _locationController,
+                decoration: InputDecoration(labelText: 'Location'),
+              ),
+              SizedBox(height: 10),
               ElevatedButton(
                 onPressed: () async {
                   _selectedDate = await showDatePicker(
@@ -222,20 +250,40 @@ class EventPage extends StatelessWidget {
                 },
                 child: Text('Select Date'),
               ),
+              SizedBox(height: 10),
+              ElevatedButton(
+                onPressed: () async {
+                  _selectedTime = await showTimePicker(
+                    context: context,
+                    initialTime: TimeOfDay.now(),
+                  );
+                },
+                child: Text('Select Time'),
+              ),
             ],
           ),
           actions: [
             ElevatedButton(
               onPressed: () async {
-                if (_nameController.text.isNotEmpty && _selectedDate != null) {
+                if (_nameController.text.isNotEmpty &&
+                    _selectedDate != null &&
+                    _selectedTime != null &&
+                    _descriptionController.text.isNotEmpty &&
+                    _locationController.text.isNotEmpty) {
+                  final eventTime = _selectedTime!.format(context);
+
                   await _firestore.collection('events').add({
                     'name': _nameController.text,
                     'date': _selectedDate,
+                    'time': eventTime,
+                    'description': _descriptionController.text,
+                    'location': _locationController.text,
                     'accepted': [],
+                    'creatorId': user.uid, // Store the creator's user ID
                   });
                   Navigator.pop(context);
                 } else {
-                  print("Event name or date is missing!");
+                  print("Please fill out all fields!");
                 }
               },
               child: Text('Post'),
@@ -259,5 +307,9 @@ class EventPage extends StatelessWidget {
         'accepted': FieldValue.arrayRemove([userId]),
       });
     }
+  }
+
+  void _deleteEvent(String eventId) async {
+    await _firestore.collection('events').doc(eventId).delete();
   }
 }
