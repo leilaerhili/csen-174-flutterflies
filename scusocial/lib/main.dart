@@ -20,12 +20,19 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class SignInPage extends StatelessWidget {
+class SignInPage extends StatefulWidget {
+  @override
+  _SignInPageState createState() => _SignInPageState();
+}
+
+class _SignInPageState extends State<SignInPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     clientId:
         "922633706004-qmprgr02q0h82p38p31v7ofm3uigj446.apps.googleusercontent.com", // Set the clientId here
   );
+
+  User? _user;
 
   // Sign in with Google and Firebase
   Future<void> signInWithGoogle() async {
@@ -50,10 +57,11 @@ class SignInPage extends StatelessWidget {
       // Sign in to Firebase with the Google credential
       final UserCredential userCredential =
           await _auth.signInWithCredential(credential);
-      final User? user = userCredential.user;
+      setState(() {
+        _user = userCredential.user;
+      });
 
-      // Display user info
-      print("Signed in as ${user?.displayName}");
+      print("Signed in as ${_user?.displayName}");
     } catch (error) {
       print("Google Sign-In error: $error");
     }
@@ -63,6 +71,9 @@ class SignInPage extends StatelessWidget {
   Future<void> signOutGoogle() async {
     await _googleSignIn.signOut();
     await _auth.signOut();
+    setState(() {
+      _user = null;
+    });
     print("User signed out");
   }
 
@@ -71,20 +82,40 @@ class SignInPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text('Google Sign-In with Firebase')),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            ElevatedButton(
-              onPressed: signInWithGoogle,
-              child: Text('Sign in with Google'),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: signOutGoogle,
-              child: Text('Sign out'),
-            ),
-          ],
-        ),
+        child: _user == null
+            ? Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  ElevatedButton(
+                    onPressed: signInWithGoogle,
+                    child: Text('Sign in with Google'),
+                  ),
+                ],
+              )
+            : Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircleAvatar(
+                    backgroundImage: NetworkImage(_user?.photoURL ?? ""),
+                    radius: 40,
+                  ),
+                  SizedBox(height: 10),
+                  Text(
+                    "Name: ${_user?.displayName}",
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(height: 5),
+                  Text(
+                    "Email: ${_user?.email}",
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: signOutGoogle,
+                    child: Text('Sign out'),
+                  ),
+                ],
+              ),
       ),
     );
   }
