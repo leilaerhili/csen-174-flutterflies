@@ -131,6 +131,8 @@ class EventPage extends StatelessWidget {
                     final eventLocation = eventData['location'];
                     final acceptedUsers =
                         List<String>.from(eventData['accepted'] ?? []);
+                    final eventCreatorId =
+                        eventData['creatorId']; // Store creator ID
 
                     return Card(
                       margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
@@ -170,12 +172,18 @@ class EventPage extends StatelessWidget {
                                           _respondToEvent(eventId, false),
                                       child: Text('Decline'),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors
-                                            .red, // Correctly set color here
+                                        backgroundColor: Colors.red,
                                       ),
                                     ),
                                   ],
                                 ),
+                                // Show delete button only if the user is the creator of the event
+                                if (user.uid == eventCreatorId)
+                                  IconButton(
+                                    icon: Icon(Icons.delete),
+                                    onPressed: () => _deleteEvent(eventId),
+                                    color: Colors.red,
+                                  ),
                               ],
                             ),
                           ],
@@ -193,8 +201,7 @@ class EventPage extends StatelessWidget {
             },
             child: Text('Sign Out'),
             style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  Colors.blue, // Set color here, previously was 'primary'
+              backgroundColor: Colors.blue,
             ),
           ),
         ],
@@ -272,6 +279,7 @@ class EventPage extends StatelessWidget {
                     'description': _descriptionController.text,
                     'location': _locationController.text,
                     'accepted': [],
+                    'creatorId': user.uid, // Store the creator's user ID
                   });
                   Navigator.pop(context);
                 } else {
@@ -299,5 +307,9 @@ class EventPage extends StatelessWidget {
         'accepted': FieldValue.arrayRemove([userId]),
       });
     }
+  }
+
+  void _deleteEvent(String eventId) async {
+    await _firestore.collection('events').doc(eventId).delete();
   }
 }
