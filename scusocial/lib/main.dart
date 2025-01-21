@@ -1,5 +1,6 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
@@ -14,7 +15,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Web Firebase Sign-In',
+      title: 'Persistent Button Counter',
       home: SignInPage(),
     );
   }
@@ -27,12 +28,14 @@ class SignInPage extends StatefulWidget {
 
 class _SignInPageState extends State<SignInPage> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
     clientId:
         "922633706004-qmprgr02q0h82p38p31v7ofm3uigj446.apps.googleusercontent.com", // Set the clientId here
   );
 
   User? _user;
+  int _buttonPressCount = 0;
 
   // Sign in with Google and Firebase
   Future<void> signInWithGoogle() async {
@@ -61,6 +64,20 @@ class _SignInPageState extends State<SignInPage> {
         _user = userCredential.user;
       });
 
+      // Fetch or initialize the button press count
+      final userDoc =
+          _firestore.collection('users').doc(_user?.uid); // Use user's UID
+      final docSnapshot = await userDoc.get();
+
+      if (docSnapshot.exists) {
+        setState(() {
+          _buttonPressCount = docSnapshot.data()?['buttonPressCount'] ?? 0;
+        });
+      } else {
+        // Initialize the button press count if the user doc doesn't exist
+        await userDoc.set({'buttonPressCount': 0});
+      }
+
       print("Signed in as ${_user?.displayName}");
     } catch (error) {
       print("Google Sign-In error: $error");
@@ -73,14 +90,25 @@ class _SignInPageState extends State<SignInPage> {
     await _auth.signOut();
     setState(() {
       _user = null;
+      _buttonPressCount = 0;
     });
     print("User signed out");
+  }
+
+  // Increment the button press count and update Firestore
+  Future<void> incrementButtonPressCount() async {
+    setState(() {
+      _buttonPressCount++;
+    });
+
+    final userDoc = _firestore.collection('users').doc(_user?.uid);
+    await userDoc.update({'buttonPressCount': _buttonPressCount});
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Google Sign-In with Firebase')),
+      appBar: AppBar(title: Text('Persistent Button Counter')),
       body: Center(
         child: _user == null
             ? Column(
@@ -108,6 +136,16 @@ class _SignInPageState extends State<SignInPage> {
                   Text(
                     "Email: ${_user?.email}",
                     style: TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(height: 20),
+                  Text(
+                    "Button pressed $_buttonPressCount times",
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 10),
+                  ElevatedButton(
+                    onPressed: incrementButtonPressCount,
+                    child: Text('Press Me'),
                   ),
                   SizedBox(height: 20),
                   ElevatedButton(
