@@ -190,8 +190,8 @@ class EventPage extends StatelessWidget {
                     _locationController.text.isNotEmpty) {
                   final eventTime = _selectedTime!.format(context);
 
-                  // Add the event to Firestore
-                  final eventRef = await _firestore.collection('events').add({
+                  // Add the event to Firestore without a placeholder comment
+                  await _firestore.collection('events').add({
                     'name': _nameController.text,
                     'date': _selectedDate,
                     'time': eventTime,
@@ -199,12 +199,6 @@ class EventPage extends StatelessWidget {
                     'location': _locationController.text,
                     'accepted': [],
                     'creatorId': user.uid,
-                  });
-
-                  // Initialize the comments subcollection
-                  await eventRef.collection('comments').doc('placeholder').set({
-                    'message': 'This is the first comment placeholder.',
-                    'timestamp': FieldValue.serverTimestamp(),
                   });
 
                   Navigator.pop(context);
