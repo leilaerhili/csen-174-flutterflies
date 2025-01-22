@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class EventPage extends StatelessWidget {
@@ -63,8 +62,7 @@ class EventPage extends StatelessWidget {
                                   fontSize: 16, fontWeight: FontWeight.bold),
                             ),
                             SizedBox(height: 4),
-                            Text(
-                                'Date: ${DateFormat.yMMMd().format(eventDate)}'),
+                            Text('Date: ${eventDate.toLocal()}'),
                             Text('Time: $eventTime'),
                             SizedBox(height: 8),
                             Text('Location: $eventLocation'),
@@ -101,6 +99,15 @@ class EventPage extends StatelessWidget {
                                     color: Colors.red,
                                   ),
                               ],
+                            ),
+                            SizedBox(height: 16),
+                            GestureDetector(
+                              onTap: () =>
+                                  _goToEventDetailsPage(context, eventId),
+                              child: Text(
+                                'View Comments',
+                                style: TextStyle(color: Colors.blue),
+                              ),
                             ),
                           ],
                         ),
@@ -183,7 +190,8 @@ class EventPage extends StatelessWidget {
                     _locationController.text.isNotEmpty) {
                   final eventTime = _selectedTime!.format(context);
 
-                  await _firestore.collection('events').add({
+                  // Add the event to Firestore
+                  final eventRef = await _firestore.collection('events').add({
                     'name': _nameController.text,
                     'date': _selectedDate,
                     'time': eventTime,
@@ -192,6 +200,13 @@ class EventPage extends StatelessWidget {
                     'accepted': [],
                     'creatorId': user.uid,
                   });
+
+                  // Initialize the comments subcollection
+                  await eventRef.collection('comments').doc('placeholder').set({
+                    'message': 'This is the first comment placeholder.',
+                    'timestamp': FieldValue.serverTimestamp(),
+                  });
+
                   Navigator.pop(context);
                 } else {
                   print("Please fill out all fields!");
@@ -242,5 +257,128 @@ class EventPage extends StatelessWidget {
     if (confirmation == true) {
       await _firestore.collection('events').doc(eventId).delete();
     }
+  }
+
+  void _goToEventDetailsPage(BuildContext context, String eventId) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EventDetailsPage(eventId: eventId, user: user),
+      ),
+    );
+  }
+}
+
+class EventDetailsPage extends StatelessWidget {
+  final String eventId;
+  final User user;
+
+  EventDetailsPage({required this.eventId, required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Event Details'),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: _CommentSection(eventId: eventId, user: user),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CommentSection extends StatefulWidget {
+  final String eventId;
+  final User user;
+
+  _CommentSection({required this.eventId, required this.user});
+
+  @override
+  __CommentSectionState createState() => __CommentSectionState();
+}
+
+class __CommentSectionState extends State<_CommentSection> {
+  final _commentController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        // Display existing comments
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('events')
+              .doc(widget.eventId)
+              .collection('comments')
+              .orderBy('timestamp')
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData) {
+              return Center(child: CircularProgressIndicator());
+            }
+
+            final comments = snapshot.data!.docs;
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: NeverScrollableScrollPhysics(),
+              itemCount: comments.length,
+              itemBuilder: (context, index) {
+                final comment = comments[index].data() as Map<String, dynamic>;
+                final userName = comment['userName'] ??
+                    'Anonymous'; // Default to 'Anonymous'
+                final message = comment['message'] ??
+                    '[No message]'; // Default message if missing
+                return ListTile(
+                  title: Text(userName),
+                  subtitle: Text(message),
+                );
+              },
+            );
+          },
+        ),
+
+        // Comment input
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _commentController,
+                  decoration: InputDecoration(labelText: 'Write a comment...'),
+                ),
+              ),
+              IconButton(
+                icon: Icon(Icons.send),
+                onPressed: () async {
+                  final commentText = _commentController.text;
+                  if (commentText.isNotEmpty) {
+                    // Add comment to Firestore
+                    await FirebaseFirestore.instance
+                        .collection('events')
+                        .doc(widget.eventId)
+                        .collection('comments')
+                        .add({
+                      'userName': widget.user.displayName ?? 'Anonymous',
+                      'message':
+                          commentText.isNotEmpty ? commentText : '[No message]',
+                      'timestamp': FieldValue.serverTimestamp(),
+                    });
+
+                    // Clear the input field
+                    _commentController.clear();
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
