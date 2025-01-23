@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 
 class EventDetailsPage extends StatefulWidget {
   final String eventId;
@@ -83,8 +84,16 @@ class _EventDetailsPageState extends State<EventDetailsPage> {
                                 'Anonymous'; // Default to 'Anonymous'
                             final message = comment['message'] ??
                                 '[No message]'; // Default message if missing
+                            final timestamp =
+                                comment['timestamp'] as Timestamp?;
+                            final formattedTime = timestamp != null
+                                ? DateFormat.yMMMd()
+                                    .add_jm()
+                                    .format(timestamp.toDate())
+                                : 'Unknown time';
+
                             return ListTile(
-                              title: Text(userName),
+                              title: Text('$userName • $formattedTime'),
                               subtitle: Text(message),
                             );
                           },

@@ -299,11 +299,17 @@ class _CommentSection extends StatefulWidget {
 class __CommentSectionState extends State<_CommentSection> {
   final _commentController = TextEditingController();
 
+  String _formatTimestamp(Timestamp? timestamp) {
+    if (timestamp == null) return 'Unknown time';
+    final dateTime = timestamp.toDate();
+    return '${dateTime.toLocal()}'
+        .split('.')[0]; // Format as "YYYY-MM-DD HH:MM:SS"
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Display existing comments
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('events')
@@ -323,20 +329,18 @@ class __CommentSectionState extends State<_CommentSection> {
               itemCount: comments.length,
               itemBuilder: (context, index) {
                 final comment = comments[index].data() as Map<String, dynamic>;
-                final userName = comment['userName'] ??
-                    'Anonymous'; // Default to 'Anonymous'
-                final message = comment['message'] ??
-                    '[No message]'; // Default message if missing
+                final userName = comment['userName'] ?? 'Anonymous';
+                final message = comment['message'] ?? '[No message]';
+                final timestamp = comment['timestamp'] as Timestamp?;
+
                 return ListTile(
-                  title: Text(userName),
+                  title: Text('$userName (${_formatTimestamp(timestamp)})'),
                   subtitle: Text(message),
                 );
               },
             );
           },
         ),
-
-        // Comment input
         Padding(
           padding: const EdgeInsets.all(8.0),
           child: Row(
@@ -352,7 +356,6 @@ class __CommentSectionState extends State<_CommentSection> {
                 onPressed: () async {
                   final commentText = _commentController.text;
                   if (commentText.isNotEmpty) {
-                    // Add comment to Firestore
                     await FirebaseFirestore.instance
                         .collection('events')
                         .doc(widget.eventId)
@@ -364,7 +367,6 @@ class __CommentSectionState extends State<_CommentSection> {
                       'timestamp': FieldValue.serverTimestamp(),
                     });
 
-                    // Clear the input field
                     _commentController.clear();
                   }
                 },
