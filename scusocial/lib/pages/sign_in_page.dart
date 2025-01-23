@@ -31,7 +31,7 @@ class _SignInPageState extends State<SignInPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Event Social Media App')),
+      appBar: AppBar(title: Text('Herd')),
       body: Center(
         child: _user == null
             ? ElevatedButton(
