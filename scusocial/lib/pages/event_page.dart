@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 // import calendar servcie
 import '../services/calendar_service.dart';
 import '../features/friends/search_user_screen.dart';
+// import calendar servcie
+import '../services/calendar_service.dart';
 
 class EventPage extends StatelessWidget {
   final User user;
