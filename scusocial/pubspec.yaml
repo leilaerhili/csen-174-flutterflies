@@ -32,7 +32,10 @@ dependencies:
   firebase_auth: ^5.4.0  # Optional, if integrating with Firebase
   firebase_core: ^3.10.0  # Required for Firebase initialization
   cloud_firestore: ^5.6.1
-  intl: ^0.18.0
+  googleapis: ^13.2.0
+  googleapis_auth: ^1.5.0
+  http: ^1.2.2
+  intl: ^0.20.2
   flutter:
     sdk: flutter
 
@@ -63,7 +66,8 @@ flutter:
   uses-material-design: true
 
   # To add assets to your application, add an assets section, like this:
-  # assets:
+  assets:
+    - lib/utils/herd-aad12-3331e59ffa37.json
   #   - images/a_dot_burr.jpeg
   #   - images/a_dot_ham.jpeg
 
