@@ -279,7 +279,7 @@ class EventPage extends StatelessWidget {
         'accepted': FieldValue.arrayUnion([userId]),
       });
 
-      // 🔹 Fetch event details
+      // Fetch event details
       final eventSnapshot = await eventDoc.get();
       final eventData = eventSnapshot.data();
       if (eventData == null) return;
@@ -290,36 +290,45 @@ class EventPage extends StatelessWidget {
       final eventDate = (eventData['date'] as Timestamp).toDate();
       final eventTime = eventData['time'];
 
-      // 🔹 Parse event time into DateTime
       final eventStartTime = _parseEventTime(eventDate, eventTime);
-      final eventEndTime =
-          eventStartTime.add(Duration(hours: 1)); // Default 1-hour duration
+      final eventEndTime = eventStartTime.add(Duration(hours: 1));
 
-      // 🔹 Get user's calendar ID from Firestore
       final userDoc = await _firestore.collection('users').doc(userId).get();
       final calendarId = userDoc.data()?['calendarId'];
       if (calendarId == null) return;
 
-      // 🔹 Add event to Google Calendar
       final calendarService = CalendarService();
-      await calendarService.addEventToPrivateCalendar(
+      final gcalEventId = await calendarService.addEventToPrivateCalendar(
         calendarId,
         eventName,
         eventStartTime,
         eventEndTime,
       );
+
+      // 🔹 Store the mapping (local event ID → Google Calendar event ID)
+      await _firestore.collection('users').doc(userId).update({
+        'gcalEventMappings.$eventId': gcalEventId,
+      });
     } else {
       await eventDoc.update({
         'accepted': FieldValue.arrayRemove([userId]),
       });
 
-      // 🔹 Remove event from Google Calendar
+      // 🔹 Retrieve the gcalEventId
       final userDoc = await _firestore.collection('users').doc(userId).get();
       final calendarId = userDoc.data()?['calendarId'];
-      if (calendarId == null) return;
+      final gcalEventId = userDoc.data()?['gcalEventMappings']?[eventId];
 
-      final calendarService = CalendarService();
-      await calendarService.removeEventFromPrivateCalendar(calendarId, eventId);
+      if (calendarId != null && gcalEventId != null) {
+        final calendarService = CalendarService();
+        await calendarService.removeEventFromPrivateCalendar(
+            calendarId, gcalEventId);
+
+        // 🔹 Remove the mapping after deletion
+        await _firestore.collection('users').doc(userId).update({
+          'gcalEventMappings.$eventId': FieldValue.delete(),
+        });
+      }
     }
   }
 
@@ -359,6 +368,21 @@ class EventPage extends StatelessWidget {
     );
 
     if (confirmation == true) {
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final calendarId = userDoc.data()?['calendarId'];
+      final gcalEventId = userDoc.data()?['gcalEventMappings']?[eventId];
+
+      if (calendarId != null && gcalEventId != null) {
+        final calendarService = CalendarService();
+        await calendarService.removeEventFromPrivateCalendar(
+            calendarId, gcalEventId);
+
+        // Remove mapping from Firestore
+        await _firestore.collection('users').doc(user.uid).update({
+          'gcalEventMappings.$eventId': FieldValue.delete(),
+        });
+      }
+
       await _firestore.collection('events').doc(eventId).delete();
     }
   }
