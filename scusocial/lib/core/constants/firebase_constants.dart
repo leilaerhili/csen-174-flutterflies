@@ -9,5 +9,6 @@ class FirebaseFieldNames {
   static const receivedRequests = "receivedRequests";
   static const sentRequests = "sentRequests";
   static const friends = "friends";
+  static const buttonPressCount = "buttonPressCount";
   FirebaseFieldNames._();
 }
