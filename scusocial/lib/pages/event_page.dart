@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 // import calendar servcie
 import '../services/calendar_service.dart';
+import '../features/friends/search_user_screen.dart';
 
 class EventPage extends StatelessWidget {
   final User user;
@@ -25,6 +26,18 @@ class EventPage extends StatelessWidget {
           IconButton(
             icon: Icon(Icons.add),
             onPressed: () => _createEvent(context),
+          ),
+          // Add a search icon in the AppBar
+          IconButton(
+            icon: Icon(Icons.search),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SearchUserScreen(),
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -509,6 +522,26 @@ class __CommentSectionState extends State<_CommentSection> {
           ),
         ),
       ],
+    );
+  }
+}
+
+class ProfileScreen extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Profile')),
+      body: Center(
+        child: ElevatedButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SearchUserScreen()),
+            );
+          },
+          child: const Text('Search Users'),
+        ),
+      ),
     );
   }
 }
