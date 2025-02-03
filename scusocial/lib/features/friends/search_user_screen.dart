@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'friend-repo.dart';
+import '../friends/friend-repo.dart'; // Ensure this is the correct path
 
 class SearchUserScreen extends StatefulWidget {
   const SearchUserScreen({Key? key}) : super(key: key);
@@ -14,7 +14,7 @@ class _SearchUserScreenState extends State<SearchUserScreen> {
   List<Map<String, dynamic>> _searchResults = [];
   bool _isLoading = false;
 
-  // Function to search users by `uid`
+  // Function to search users by `fullName`
   void _searchUsers(String query) async {
     if (query.isEmpty) {
       setState(() {
@@ -28,11 +28,11 @@ class _SearchUserScreenState extends State<SearchUserScreen> {
     });
 
     try {
-      // Query Firestore for users whose `uid` matches the search input
+      // Query Firestore for users whose `fullName` matches or starts with the search input
       final snapshot = await FirebaseFirestore.instance
           .collection('users')
-          .where('uid', isGreaterThanOrEqualTo: query)
-          .where('uid', isLessThanOrEqualTo: query + '\uf8ff')
+          .where('fullName', isGreaterThanOrEqualTo: query)
+          .where('fullName', isLessThanOrEqualTo: query + '\uf8ff')
           .get();
 
       setState(() {
@@ -59,23 +59,23 @@ class _SearchUserScreenState extends State<SearchUserScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Search bar to search by `uid`
+            // Search bar
             TextField(
               controller: _searchController,
               decoration: InputDecoration(
-                labelText: 'Search by UID',
+                labelText: 'Search by Name',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10.0),
                 ),
               ),
               onChanged: (query) {
-                _searchUsers(query); // Trigger search when text changes
+                _searchUsers(query.trim()); // Trigger search on text change
               },
             ),
             const SizedBox(height: 20),
 
-            // Loading indicator during search
+            // Show loading indicator
             if (_isLoading) const CircularProgressIndicator(),
 
             // Display search results
@@ -87,21 +87,22 @@ class _SearchUserScreenState extends State<SearchUserScreen> {
                       itemBuilder: (context, index) {
                         final user = _searchResults[index];
                         return ListTile(
-                          title: Text(user['uid'] ?? 'No UID'),
+                          title: Text(user['fullName'] ?? 'No Name'),
                           subtitle: Text(
                             'Friends: ${user['friends']?.length ?? 0}', // Show number of friends
                           ),
                           trailing: IconButton(
                             icon: const Icon(Icons.person_add),
                             onPressed: () async {
-                              // Use FriendRepository to send a friend request
+                              // Send friend request using FriendRepository
                               final friendRepo = FriendRepository();
                               final result = await friendRepo.sendFriendRequest(
                                 userId: user['uid'],
                               );
                               if (result == null) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Friend request sent!')),
+                                  const SnackBar(
+                                      content: Text('Friend request sent!')),
                                 );
                               } else {
                                 ScaffoldMessenger.of(context).showSnackBar(
