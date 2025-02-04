@@ -25,23 +25,56 @@ class FriendRepository {
   }
 
   // Send friend request
-  Future<String?> sendFriendRequest({
-    required String userId,
-  }) async {
-    try {
-      // Add my uid to the other person's received requests
-      await _firestore.collection(FirebaseCollectionNames.users).doc(userId).update({
+Future<String?> sendFriendRequest({required String userId}) async {
+  try {
+    final DocumentReference receiverDocRef =
+        _firestore.collection(FirebaseCollectionNames.users).doc(userId);
+    final DocumentReference senderDocRef =
+        _firestore.collection(FirebaseCollectionNames.users).doc(_myUid);
+
+    // Check if receiver document exists
+    final receiverSnapshot = await receiverDocRef.get();
+    if (!receiverSnapshot.exists) {
+      // Create the user document with only the `receivedRequests` field initialized
+      await receiverDocRef.set({
+        FirebaseFieldNames.receivedRequests: [_myUid], // Add sender's UID to receivedRequests
+      });
+    } else {
+      // Update the receivedRequests of the target user
+      await receiverDocRef.update({
         FirebaseFieldNames.receivedRequests: FieldValue.arrayUnion([_myUid]),
       });
-      // Add the other person's uid to my sent requests
-      await _firestore.collection(FirebaseCollectionNames.users).doc(_myUid).update({
-        FirebaseFieldNames.sentRequests: FieldValue.arrayUnion([userId]),
-      });
-      return null;
-    } catch (e) {
-      return e.toString();
     }
+
+    // Check if sender document exists
+    final senderSnapshot = await senderDocRef.get();
+    if (!senderSnapshot.exists) {
+      await senderDocRef.set({
+        FirebaseFieldNames.uid: _myUid,
+        FirebaseFieldNames.friends: [],
+        FirebaseFieldNames.receivedRequests: [],
+        FirebaseFieldNames.sentRequests: [],
+        FirebaseFieldNames.buttonPressCount: 0
+      });
+    }
+
+    // Update the receivedRequests of the target user
+    await receiverDocRef.update({
+      FirebaseFieldNames.receivedRequests: FieldValue.arrayUnion([_myUid]),
+    });
+
+    // Update the sentRequests of the current user
+    await senderDocRef.update({
+      FirebaseFieldNames.sentRequests: FieldValue.arrayUnion([userId]),
+    });
+
+    return null; // Successfully sent friend request
+  } catch (e) {
+    print("Error sending friend request: $e");
+    return e.toString(); // Return error message for debugging
   }
+}
+
 
   // Accept friend request
   Future<String?> acceptFriendRequest({
