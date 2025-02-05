@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 // import calendar servcie
 import '../services/calendar_service.dart';
 import '../features/friends/search_user_screen.dart';
 // import calendar servcie
 import '../services/calendar_service.dart';
+
+import '../features/friends/search_user_screen.dart';
+
 
 class EventPage extends StatelessWidget {
   final User user;
@@ -20,10 +24,12 @@ class EventPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('Welcome, ${user.displayName}'),
+
         leading: IconButton(
           icon: Icon(Icons.calendar_today),
           onPressed: () => _showCalendarSubscriptionLink(context),
         ),
+
         actions: [
           IconButton(
             icon: Icon(Icons.add),
@@ -148,6 +154,7 @@ class EventPage extends StatelessWidget {
     );
   }
 
+
   /// Fetch and show the user's calendar subscription link
   void _showCalendarSubscriptionLink(BuildContext context) async {
     try {
@@ -198,6 +205,7 @@ class EventPage extends StatelessWidget {
       },
     );
   }
+
 
   void _createEvent(BuildContext context) {
     final _nameController = TextEditingController();
@@ -262,6 +270,7 @@ class EventPage extends StatelessWidget {
                     _locationController.text.isNotEmpty) {
                   final eventTime = _selectedTime!.format(context);
 
+
                   await _firestore.collection('events').add({
                     'name': _nameController.text,
                     'date': _selectedDate,
@@ -294,6 +303,7 @@ class EventPage extends StatelessWidget {
         'accepted': FieldValue.arrayUnion([userId]),
       });
 
+
       // Fetch event details
       final eventSnapshot = await eventDoc.get();
       final eventData = eventSnapshot.data();
@@ -324,10 +334,12 @@ class EventPage extends StatelessWidget {
       await _firestore.collection('users').doc(userId).update({
         'gcalEventMappings.$eventId': gcalEventId,
       });
+
     } else {
       await eventDoc.update({
         'accepted': FieldValue.arrayRemove([userId]),
       });
+
 
       // 🔹 Retrieve the gcalEventId
       final userDoc = await _firestore.collection('users').doc(userId).get();
@@ -363,6 +375,7 @@ class EventPage extends StatelessWidget {
     );
   }
 
+
   void _deleteEvent(String eventId, BuildContext context) async {
     final confirmation = await showDialog<bool>(
       context: context,
@@ -383,6 +396,7 @@ class EventPage extends StatelessWidget {
     );
 
     if (confirmation == true) {
+
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
       final calendarId = userDoc.data()?['calendarId'];
       final gcalEventId = userDoc.data()?['gcalEventMappings']?[eventId];
@@ -397,6 +411,7 @@ class EventPage extends StatelessWidget {
           'gcalEventMappings.$eventId': FieldValue.delete(),
         });
       }
+
 
       await _firestore.collection('events').doc(eventId).delete();
     }
@@ -546,4 +561,6 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+
 }
+
