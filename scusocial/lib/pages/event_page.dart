@@ -1,7 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+// import calendar servcie
+import '../services/calendar_service.dart';
 import '../features/friends/search_user_screen.dart';
+// import calendar servcie
+import '../services/calendar_service.dart';
+
+import '../features/friends/search_user_screen.dart';
+
 
 class EventPage extends StatelessWidget {
   final User user;
@@ -16,6 +24,12 @@ class EventPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('Welcome, ${user.displayName}'),
+
+        leading: IconButton(
+          icon: Icon(Icons.calendar_today),
+          onPressed: () => _showCalendarSubscriptionLink(context),
+        ),
+
         actions: [
           IconButton(
             icon: Icon(Icons.add),
@@ -140,6 +154,59 @@ class EventPage extends StatelessWidget {
     );
   }
 
+
+  /// Fetch and show the user's calendar subscription link
+  void _showCalendarSubscriptionLink(BuildContext context) async {
+    try {
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+      final calendarId = doc.data()?['calendarId'];
+      print('Calendar ID: $calendarId');
+      if (calendarId == null || calendarId == 'none') {
+        _showDialog(context, 'No Calendar Found',
+            'You do not have a calendar set up yet.');
+        return;
+      }
+
+      final iCalLink =
+          "https://calendar.google.com/calendar/ical/$calendarId/public/basic.ics";
+
+      _showDialog(
+        context,
+        'Subscribe to Your Calendar',
+        'To subscribe to your events:\n\n'
+            '1️⃣ Open **Google Calendar**\n'
+            '2️⃣ Click on **"Other calendars"** in the left panel\n'
+            '3️⃣ Select **"From URL"**\n'
+            '4️⃣ Paste this link:\n\n'
+            '**$iCalLink**\n\n'
+            '5️⃣ Click **"Add calendar"** ✅\n\n'
+            'Your events will now automatically sync!',
+      );
+    } catch (e) {
+      _showDialog(context, 'Error', 'Failed to retrieve calendar link.');
+    }
+  }
+
+  /// Show a dialog with information
+  void _showDialog(BuildContext context, String title, String message) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text(title),
+          content: SelectableText(message), // Allows copying the link
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
   void _createEvent(BuildContext context) {
     final _nameController = TextEditingController();
     final _descriptionController = TextEditingController();
@@ -203,7 +270,7 @@ class EventPage extends StatelessWidget {
                     _locationController.text.isNotEmpty) {
                   final eventTime = _selectedTime!.format(context);
 
-                  // Add the event to Firestore without a placeholder comment
+
                   await _firestore.collection('events').add({
                     'name': _nameController.text,
                     'date': _selectedDate,
@@ -235,12 +302,79 @@ class EventPage extends StatelessWidget {
       await eventDoc.update({
         'accepted': FieldValue.arrayUnion([userId]),
       });
+
+
+      // Fetch event details
+      final eventSnapshot = await eventDoc.get();
+      final eventData = eventSnapshot.data();
+      if (eventData == null) return;
+
+      final eventName = eventData['name'];
+      final eventDescription = eventData['description'];
+      final eventLocation = eventData['location'];
+      final eventDate = (eventData['date'] as Timestamp).toDate();
+      final eventTime = eventData['time'];
+
+      final eventStartTime = _parseEventTime(eventDate, eventTime);
+      final eventEndTime = eventStartTime.add(Duration(hours: 1));
+
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final calendarId = userDoc.data()?['calendarId'];
+      if (calendarId == null) return;
+
+      final calendarService = CalendarService();
+      final gcalEventId = await calendarService.addEventToPrivateCalendar(
+        calendarId,
+        eventName,
+        eventStartTime,
+        eventEndTime,
+      );
+
+      // 🔹 Store the mapping (local event ID → Google Calendar event ID)
+      await _firestore.collection('users').doc(userId).update({
+        'gcalEventMappings.$eventId': gcalEventId,
+      });
+
     } else {
       await eventDoc.update({
         'accepted': FieldValue.arrayRemove([userId]),
       });
+
+
+      // 🔹 Retrieve the gcalEventId
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final calendarId = userDoc.data()?['calendarId'];
+      final gcalEventId = userDoc.data()?['gcalEventMappings']?[eventId];
+
+      if (calendarId != null && gcalEventId != null) {
+        final calendarService = CalendarService();
+        await calendarService.removeEventFromPrivateCalendar(
+            calendarId, gcalEventId);
+
+        // 🔹 Remove the mapping after deletion
+        await _firestore.collection('users').doc(userId).update({
+          'gcalEventMappings.$eventId': FieldValue.delete(),
+        });
+      }
     }
   }
+
+  /// Helper function to parse time string into DateTime
+  DateTime _parseEventTime(DateTime eventDate, String eventTime) {
+    final timeParts = eventTime.split(':');
+    final hour = int.parse(timeParts[0]);
+    final minute = int.parse(timeParts[1].split(' ')[0]);
+    final isPM = eventTime.toLowerCase().contains('pm');
+
+    return DateTime(
+      eventDate.year,
+      eventDate.month,
+      eventDate.day,
+      isPM ? (hour % 12) + 12 : hour,
+      minute,
+    );
+  }
+
 
   void _deleteEvent(String eventId, BuildContext context) async {
     final confirmation = await showDialog<bool>(
@@ -262,6 +396,23 @@ class EventPage extends StatelessWidget {
     );
 
     if (confirmation == true) {
+
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final calendarId = userDoc.data()?['calendarId'];
+      final gcalEventId = userDoc.data()?['gcalEventMappings']?[eventId];
+
+      if (calendarId != null && gcalEventId != null) {
+        final calendarService = CalendarService();
+        await calendarService.removeEventFromPrivateCalendar(
+            calendarId, gcalEventId);
+
+        // Remove mapping from Firestore
+        await _firestore.collection('users').doc(user.uid).update({
+          'gcalEventMappings.$eventId': FieldValue.delete(),
+        });
+      }
+
+
       await _firestore.collection('events').doc(eventId).delete();
     }
   }
@@ -391,6 +542,7 @@ class __CommentSectionState extends State<_CommentSection> {
     );
   }
 }
+
 class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -409,4 +561,6 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+
 }
+
