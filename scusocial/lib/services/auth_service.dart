@@ -26,7 +26,8 @@ class AuthService {
       final user = userCredential.user;
 
       if (user != null) {
-        await _handleUserCalendar(user);
+        await _initializeUser(user); // Ensure the user exists first
+        await _handleUserCalendar(user); // Then handle the calendar
       }
 
       return user;
@@ -36,23 +37,25 @@ class AuthService {
     }
   }
 
-  Future<void> _handleUserCalendar(User user) async {
+  Future<void> _initializeUser(User user) async {
     final userDoc = await _firestore.collection('users').doc(user.uid).get();
 
-    if (!userDoc.exists || userDoc.data()?['calendarLink'] == "None") {
-      // Ensure the user has a calendar and get their iCal subscription link
-      final calendarLink =
-          await _calendarService.ensureUserHasCalendar(user.uid, user.email!);
-
-      // Store the calendar link in Firestore
+    if (!userDoc.exists) {
       await _firestore.collection('users').doc(user.uid).set({
-        'calendarLink': calendarLink,
+        'fullName': user.displayName ?? '',
+        'uid': user.uid,
+        'friends': [], // Initialize as empty array
+        'sentRequests': [],
+        'receivedRequests': [],
+        'calendarId': null, // Placeholder for calendar fields
+        'calendarLink': null,
       }, SetOptions(merge: true));
-
-      print("User calendar created: $calendarLink");
-    } else {
-      print("User already has a calendar: ${userDoc.data()?['calendarLink']}");
     }
+  }
+
+  Future<void> _handleUserCalendar(User user) async {
+    final calendarLink =
+        await _calendarService.ensureUserHasCalendar(user.uid, user.email!);
   }
 
   Future<void> signOut() async {
