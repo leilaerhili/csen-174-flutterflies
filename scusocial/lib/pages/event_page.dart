@@ -9,14 +9,21 @@ import '../features/friends/search_user_screen.dart';
 import '../services/calendar_service.dart';
 
 import '../features/friends/search_user_screen.dart';
-
+import '../services/firestore_service.dart';
 
 class EventPage extends StatelessWidget {
   final User user;
   final Future<void> Function() signOut;
+  final bool eventIsTesting;
+  late final FirestoreService _firestoreService;
 
-  EventPage({required this.user, required this.signOut});
-
+  EventPage({
+    required this.user,
+    required this.signOut,
+    required this.eventIsTesting,
+  }) {
+    _firestoreService = FirestoreService(isTesting: eventIsTesting);
+  }
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
@@ -24,16 +31,14 @@ class EventPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text('Welcome, ${user.displayName}'),
-
         leading: IconButton(
           icon: Icon(Icons.calendar_today),
           onPressed: () => _showCalendarSubscriptionLink(context),
         ),
-
         actions: [
           IconButton(
             icon: Icon(Icons.add),
-            onPressed: () => _createEvent(context),
+            onPressed: () => _createEvent(context, user.uid, _firestoreService),
           ),
           // Add a search icon in the AppBar
           IconButton(
@@ -154,7 +159,6 @@ class EventPage extends StatelessWidget {
     );
   }
 
-
   /// Fetch and show the user's calendar subscription link
   void _showCalendarSubscriptionLink(BuildContext context) async {
     try {
@@ -206,92 +210,11 @@ class EventPage extends StatelessWidget {
     );
   }
 
+  // final FirestoreService _firestoreService = FirestoreService(isTesting: false);
 
-  void _createEvent(BuildContext context) {
-    final _nameController = TextEditingController();
-    final _descriptionController = TextEditingController();
-    final _locationController = TextEditingController();
-    DateTime? _selectedDate;
-    TimeOfDay? _selectedTime;
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Create Event'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _nameController,
-                decoration: InputDecoration(labelText: 'Event Name'),
-              ),
-              SizedBox(height: 10),
-              TextField(
-                controller: _descriptionController,
-                decoration: InputDecoration(labelText: 'Description'),
-              ),
-              SizedBox(height: 10),
-              TextField(
-                controller: _locationController,
-                decoration: InputDecoration(labelText: 'Location'),
-              ),
-              SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: () async {
-                  _selectedDate = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime.now(),
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime(2100),
-                  );
-                },
-                child: Text('Select Date'),
-              ),
-              SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: () async {
-                  _selectedTime = await showTimePicker(
-                    context: context,
-                    initialTime: TimeOfDay.now(),
-                  );
-                },
-                child: Text('Select Time'),
-              ),
-            ],
-          ),
-          actions: [
-            ElevatedButton(
-              onPressed: () async {
-                if (_nameController.text.isNotEmpty &&
-                    _selectedDate != null &&
-                    _selectedTime != null &&
-                    _descriptionController.text.isNotEmpty &&
-                    _locationController.text.isNotEmpty) {
-                  final eventTime = _selectedTime!.format(context);
-
-
-                  await _firestore.collection('events').add({
-                    'name': _nameController.text,
-                    'date': _selectedDate,
-                    'time': eventTime,
-                    'description': _descriptionController.text,
-                    'location': _locationController.text,
-                    'accepted': [],
-                    'creatorId': user.uid,
-                  });
-
-                  Navigator.pop(context);
-                } else {
-                  print("Please fill out all fields!");
-                }
-              },
-              child: Text('Post'),
-            ),
-          ],
-        );
-      },
-    );
+  void _createEvent(
+      BuildContext context, String userId, FirestoreService _firestoreService) {
+    _firestoreService.createEvent(context, userId);
   }
 
   void _respondToEvent(String eventId, bool accept) async {
@@ -302,7 +225,6 @@ class EventPage extends StatelessWidget {
       await eventDoc.update({
         'accepted': FieldValue.arrayUnion([userId]),
       });
-
 
       // Fetch event details
       final eventSnapshot = await eventDoc.get();
@@ -334,12 +256,10 @@ class EventPage extends StatelessWidget {
       await _firestore.collection('users').doc(userId).update({
         'gcalEventMappings.$eventId': gcalEventId,
       });
-
     } else {
       await eventDoc.update({
         'accepted': FieldValue.arrayRemove([userId]),
       });
-
 
       // 🔹 Retrieve the gcalEventId
       final userDoc = await _firestore.collection('users').doc(userId).get();
@@ -375,7 +295,6 @@ class EventPage extends StatelessWidget {
     );
   }
 
-
   void _deleteEvent(String eventId, BuildContext context) async {
     final confirmation = await showDialog<bool>(
       context: context,
@@ -396,7 +315,6 @@ class EventPage extends StatelessWidget {
     );
 
     if (confirmation == true) {
-
       final userDoc = await _firestore.collection('users').doc(user.uid).get();
       final calendarId = userDoc.data()?['calendarId'];
       final gcalEventId = userDoc.data()?['gcalEventMappings']?[eventId];
@@ -411,7 +329,6 @@ class EventPage extends StatelessWidget {
           'gcalEventMappings.$eventId': FieldValue.delete(),
         });
       }
-
 
       await _firestore.collection('events').doc(eventId).delete();
     }
@@ -561,6 +478,4 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
-
 }
-

@@ -1,8 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class FirestoreService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  late final FirebaseFirestore _firestore;
+
+  FirestoreService({required bool isTesting})
+      : _firestore =
+            isTesting ? FakeFirebaseFirestore() : FirebaseFirestore.instance;
 
   Stream<List<Map<String, dynamic>>> getEventsStream() {
     return _firestore.collection('events').snapshots().map((snapshot) =>
@@ -20,41 +25,51 @@ class FirestoreService {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Create Event'),
+          title: const Text('Create Event'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               TextField(
                 controller: nameController,
-                decoration: InputDecoration(labelText: 'Event Name'),
+                decoration: const InputDecoration(labelText: 'Event Name'),
               ),
+              const SizedBox(height: 10),
               TextField(
                 controller: descriptionController,
-                decoration: InputDecoration(labelText: 'Description'),
+                decoration: const InputDecoration(labelText: 'Description'),
               ),
+              const SizedBox(height: 10),
               TextField(
                 controller: locationController,
-                decoration: InputDecoration(labelText: 'Location'),
+                decoration: const InputDecoration(labelText: 'Location'),
               ),
+              const SizedBox(height: 10),
               ElevatedButton(
                 onPressed: () async {
-                  selectedDate = await showDatePicker(
+                  final date = await showDatePicker(
                     context: context,
                     initialDate: DateTime.now(),
                     firstDate: DateTime.now(),
                     lastDate: DateTime(2100),
                   );
+                  if (date != null) {
+                    selectedDate = date;
+                  }
                 },
-                child: Text('Select Date'),
+                child: const Text('Select Date'),
               ),
+              const SizedBox(height: 10),
               ElevatedButton(
                 onPressed: () async {
-                  selectedTime = await showTimePicker(
+                  final time = await showTimePicker(
                     context: context,
                     initialTime: TimeOfDay.now(),
                   );
+                  if (time != null) {
+                    selectedTime = time;
+                  }
                 },
-                child: Text('Select Time'),
+                child: const Text('Select Time'),
               ),
             ],
           ),
@@ -67,21 +82,23 @@ class FirestoreService {
                     descriptionController.text.isNotEmpty &&
                     locationController.text.isNotEmpty) {
                   final eventTime = selectedTime!.format(context);
+
                   await _firestore.collection('events').add({
                     'name': nameController.text,
                     'description': descriptionController.text,
                     'location': locationController.text,
-                    'date': selectedDate,
+                    'date': Timestamp.fromDate(selectedDate!),
                     'time': eventTime,
                     'creatorId': userId,
                     'accepted': [],
                   });
+
                   Navigator.pop(context);
                 } else {
                   print('Please fill all fields.');
                 }
               },
-              child: Text('Create'),
+              child: const Text('Create'),
             ),
           ],
         );
