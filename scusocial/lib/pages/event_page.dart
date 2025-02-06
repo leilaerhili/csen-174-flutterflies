@@ -5,10 +5,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 // import calendar servcie
 import '../services/calendar_service.dart';
 import '../features/friends/search_user_screen.dart';
-// import calendar servcie
-import '../services/calendar_service.dart';
-
-import '../features/friends/search_user_screen.dart';
 import '../services/firestore_service.dart';
 
 class EventPage extends StatelessWidget {
@@ -40,7 +36,6 @@ class EventPage extends StatelessWidget {
             icon: Icon(Icons.add),
             onPressed: () => _createEvent(context, user.uid, _firestoreService),
           ),
-          // Add a search icon in the AppBar
           IconButton(
             icon: Icon(Icons.search),
             onPressed: () {
@@ -159,7 +154,6 @@ class EventPage extends StatelessWidget {
     );
   }
 
-  /// Fetch and show the user's calendar subscription link
   void _showCalendarSubscriptionLink(BuildContext context) async {
     try {
       final doc = await _firestore.collection('users').doc(user.uid).get();
@@ -191,14 +185,13 @@ class EventPage extends StatelessWidget {
     }
   }
 
-  /// Show a dialog with information
   void _showDialog(BuildContext context, String title, String message) {
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text(title),
-          content: SelectableText(message), // Allows copying the link
+          content: SelectableText(message),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -210,11 +203,122 @@ class EventPage extends StatelessWidget {
     );
   }
 
-  // final FirestoreService _firestoreService = FirestoreService(isTesting: false);
-
   void _createEvent(
-      BuildContext context, String userId, FirestoreService _firestoreService) {
-    _firestoreService.createEvent(context, userId);
+      BuildContext context, String userId, FirestoreService firestoreService) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final TextEditingController nameController = TextEditingController();
+        final TextEditingController descriptionController =
+            TextEditingController();
+        final TextEditingController locationController =
+            TextEditingController();
+        DateTime? selectedDate;
+        TimeOfDay? selectedTime;
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Create Event'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: InputDecoration(labelText: 'Event Name'),
+                    ),
+                    TextField(
+                      controller: descriptionController,
+                      decoration: InputDecoration(labelText: 'Description'),
+                    ),
+                    TextField(
+                      controller: locationController,
+                      decoration: InputDecoration(labelText: 'Location'),
+                    ),
+                    SizedBox(height: 10),
+
+                    // Date Picker
+                    ListTile(
+                      title: Text(selectedDate == null
+                          ? 'Select Date'
+                          : 'Date: ${selectedDate!.toLocal()}'.split(' ')[0]),
+                      trailing: Icon(Icons.calendar_today),
+                      onTap: () async {
+                        final pickedDate = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime(2100),
+                        );
+                        if (pickedDate != null) {
+                          setState(() {
+                            selectedDate = pickedDate;
+                          });
+                        }
+                      },
+                    ),
+
+                    // Time Picker
+                    ListTile(
+                      title: Text(selectedTime == null
+                          ? 'Select Time'
+                          : 'Time: ${selectedTime!.format(context)}'),
+                      trailing: Icon(Icons.access_time),
+                      onTap: () async {
+                        final pickedTime = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.now(),
+                        );
+                        if (pickedTime != null) {
+                          setState(() {
+                            selectedTime = pickedTime;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (nameController.text.isNotEmpty &&
+                        descriptionController.text.isNotEmpty &&
+                        locationController.text.isNotEmpty &&
+                        selectedDate != null &&
+                        selectedTime != null) {
+                      // Convert TimeOfDay to a string format
+                      final formattedTime = selectedTime!.format(context);
+
+                      firestoreService.createEvent(
+                        nameController.text,
+                        descriptionController.text,
+                        locationController.text,
+                        selectedDate!,
+                        formattedTime,
+                        userId,
+                      );
+                      Navigator.pop(context);
+                    } else {
+                      // Show error if fields are missing
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Please fill in all fields')),
+                      );
+                    }
+                  },
+                  child: Text('Create'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _respondToEvent(String eventId, bool accept) async {
@@ -226,7 +330,6 @@ class EventPage extends StatelessWidget {
         'accepted': FieldValue.arrayUnion([userId]),
       });
 
-      // Fetch event details
       final eventSnapshot = await eventDoc.get();
       final eventData = eventSnapshot.data();
       if (eventData == null) return;
@@ -252,7 +355,6 @@ class EventPage extends StatelessWidget {
         eventEndTime,
       );
 
-      // 🔹 Store the mapping (local event ID → Google Calendar event ID)
       await _firestore.collection('users').doc(userId).update({
         'gcalEventMappings.$eventId': gcalEventId,
       });
@@ -261,7 +363,6 @@ class EventPage extends StatelessWidget {
         'accepted': FieldValue.arrayRemove([userId]),
       });
 
-      // 🔹 Retrieve the gcalEventId
       final userDoc = await _firestore.collection('users').doc(userId).get();
       final calendarId = userDoc.data()?['calendarId'];
       final gcalEventId = userDoc.data()?['gcalEventMappings']?[eventId];
@@ -271,7 +372,6 @@ class EventPage extends StatelessWidget {
         await calendarService.removeEventFromPrivateCalendar(
             calendarId, gcalEventId);
 
-        // 🔹 Remove the mapping after deletion
         await _firestore.collection('users').doc(userId).update({
           'gcalEventMappings.$eventId': FieldValue.delete(),
         });
@@ -279,7 +379,6 @@ class EventPage extends StatelessWidget {
     }
   }
 
-  /// Helper function to parse time string into DateTime
   DateTime _parseEventTime(DateTime eventDate, String eventTime) {
     final timeParts = eventTime.split(':');
     final hour = int.parse(timeParts[0]);
@@ -324,7 +423,6 @@ class EventPage extends StatelessWidget {
         await calendarService.removeEventFromPrivateCalendar(
             calendarId, gcalEventId);
 
-        // Remove mapping from Firestore
         await _firestore.collection('users').doc(user.uid).update({
           'gcalEventMappings.$eventId': FieldValue.delete(),
         });
@@ -383,8 +481,7 @@ class __CommentSectionState extends State<_CommentSection> {
   String _formatTimestamp(Timestamp? timestamp) {
     if (timestamp == null) return 'Unknown time';
     final dateTime = timestamp.toDate();
-    return '${dateTime.toLocal()}'
-        .split('.')[0]; // Format as "YYYY-MM-DD HH:MM:SS"
+    return '${dateTime.toLocal()}'.split('.')[0];
   }
 
   @override

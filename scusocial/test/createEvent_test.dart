@@ -1,26 +1,41 @@
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:scusocial/services/firestore_service.dart' as firestore_service;
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() {
   test('Fake Firestore: Add and Retrieve Events', () async {
     final fakeFirestore = FakeFirebaseFirestore();
-    // create an event page object
+
+    // Initialize the Firestore service for testing
     final firestore_service.FirestoreService testfirestoreService =
         firestore_service.FirestoreService(isTesting: true);
+
+    // Define test event details
+    const String name = "Test Event";
+    const String description = "This is a test event description.";
+    const String location = "Test Location";
+    final DateTime date = DateTime(2025, 2, 15); // Example future date
+    const String time = "3:00 PM";
+    const String creatorId = "testUser123";
+
     // Add a test event
-  BuildContext somecontext  = new BuildContext();
-  String someuserId = "testUserId";
-  
-  testfirestoreService.createEvent(BuildContext somecontext, String someuserId);
+    await testfirestoreService.createEvent(
+        name, description, location, date, time, creatorId);
 
-    // Fetch events
-
-
+    // Fetch events from the fake Firestore
     final snapshot = await fakeFirestore.collection('events').get();
-    expect(actual, matcher)
+    final events = snapshot.docs;
 
+    // Assertions
+    expect(events.length, 1); // Ensure one event was added
+    final eventData = events.first.data();
+
+    expect(eventData['name'], name);
+    expect(eventData['description'], description);
+    expect(eventData['location'], location);
+    expect((eventData['date'] as Timestamp).toDate(), date);
+    expect(eventData['time'], time);
+    expect(eventData['creatorId'], creatorId);
   });
 }
