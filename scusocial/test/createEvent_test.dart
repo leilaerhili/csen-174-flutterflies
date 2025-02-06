@@ -1,21 +1,21 @@
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:scusocial/services/firestore_service.dart' as firestore_service;
+import 'package:scusocial/services/firestore_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 void main() {
   test('Fake Firestore: Add and Retrieve Events', () async {
     final fakeFirestore = FakeFirebaseFirestore();
 
-    // Initialize the Firestore service for testing
-    final firestore_service.FirestoreService testfirestoreService =
-        firestore_service.FirestoreService(isTesting: true);
+    // Inject fake Firestore into the service
+    final FirestoreService testfirestoreService =
+        FirestoreService(firestore: fakeFirestore);
 
     // Define test event details
     const String name = "Test Event";
     const String description = "This is a test event description.";
     const String location = "Test Location";
-    final DateTime date = DateTime(2025, 2, 15); // Example future date
+    final DateTime date = DateTime(2025, 2, 15); // Future date
     const String time = "3:00 PM";
     const String creatorId = "testUser123";
 

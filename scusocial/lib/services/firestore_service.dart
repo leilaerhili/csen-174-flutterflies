@@ -3,11 +3,10 @@ import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class FirestoreService {
-  late final FirebaseFirestore _firestore;
+  final FirebaseFirestore _firestore;
 
-  FirestoreService({required bool isTesting})
-      : _firestore =
-            isTesting ? FakeFirebaseFirestore() : FirebaseFirestore.instance;
+  FirestoreService({required FirebaseFirestore firestore})
+      : _firestore = firestore;
 
   Future<void> createEvent(
     String name,

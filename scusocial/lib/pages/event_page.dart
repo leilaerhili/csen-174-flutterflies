@@ -12,15 +12,14 @@ class EventPage extends StatelessWidget {
   final Future<void> Function() signOut;
   final bool eventIsTesting;
   late final FirestoreService _firestoreService;
-
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   EventPage({
     required this.user,
     required this.signOut,
     required this.eventIsTesting,
   }) {
-    _firestoreService = FirestoreService(isTesting: eventIsTesting);
+    _firestoreService = FirestoreService(firestore: _firestore);
   }
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   @override
   Widget build(BuildContext context) {
