@@ -1,27 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+// import calendar servcie
+import '../services/calendar_service.dart';
 import '../features/friends/search_user_screen.dart';
+import '../services/firestore_service.dart';
 
 class EventPage extends StatelessWidget {
   final User user;
   final Future<void> Function() signOut;
-
-  EventPage({required this.user, required this.signOut});
-
+  final bool eventIsTesting;
+  late final FirestoreService _firestoreService;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  EventPage({
+    required this.user,
+    required this.signOut,
+    required this.eventIsTesting,
+  }) {
+    _firestoreService = FirestoreService(firestore: _firestore);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Welcome, ${user.displayName}'),
+        leading: IconButton(
+          icon: Icon(Icons.calendar_today),
+          onPressed: () => _showCalendarSubscriptionLink(context),
+        ),
         actions: [
           IconButton(
             icon: Icon(Icons.add),
-            onPressed: () => _createEvent(context),
+            onPressed: () => _createEvent(context, user.uid, _firestoreService),
           ),
-          // Add a search icon in the AppBar
           IconButton(
             icon: Icon(Icons.search),
             onPressed: () {
@@ -140,88 +153,168 @@ class EventPage extends StatelessWidget {
     );
   }
 
-  void _createEvent(BuildContext context) {
-    final _nameController = TextEditingController();
-    final _descriptionController = TextEditingController();
-    final _locationController = TextEditingController();
-    DateTime? _selectedDate;
-    TimeOfDay? _selectedTime;
+  void _showCalendarSubscriptionLink(BuildContext context) async {
+    try {
+      final doc = await _firestore.collection('users').doc(user.uid).get();
+      final calendarId = doc.data()?['calendarId'];
+      print('Calendar ID: $calendarId');
+      if (calendarId == null || calendarId == 'none') {
+        _showDialog(context, 'No Calendar Found',
+            'You do not have a calendar set up yet.');
+        return;
+      }
 
+      final iCalLink =
+          "https://calendar.google.com/calendar/ical/$calendarId/public/basic.ics";
+
+      _showDialog(
+        context,
+        'Subscribe to Your Calendar',
+        'To subscribe to your events:\n\n'
+            '1️⃣ Open **Google Calendar**\n'
+            '2️⃣ Click on **"Other calendars"** in the left panel\n'
+            '3️⃣ Select **"From URL"**\n'
+            '4️⃣ Paste this link:\n\n'
+            '**$iCalLink**\n\n'
+            '5️⃣ Click **"Add calendar"** ✅\n\n'
+            'Your events will now automatically sync!',
+      );
+    } catch (e) {
+      _showDialog(context, 'Error', 'Failed to retrieve calendar link.');
+    }
+  }
+
+  void _showDialog(BuildContext context, String title, String message) {
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Create Event'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _nameController,
-                decoration: InputDecoration(labelText: 'Event Name'),
-              ),
-              SizedBox(height: 10),
-              TextField(
-                controller: _descriptionController,
-                decoration: InputDecoration(labelText: 'Description'),
-              ),
-              SizedBox(height: 10),
-              TextField(
-                controller: _locationController,
-                decoration: InputDecoration(labelText: 'Location'),
-              ),
-              SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: () async {
-                  _selectedDate = await showDatePicker(
-                    context: context,
-                    initialDate: DateTime.now(),
-                    firstDate: DateTime.now(),
-                    lastDate: DateTime(2100),
-                  );
-                },
-                child: Text('Select Date'),
-              ),
-              SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: () async {
-                  _selectedTime = await showTimePicker(
-                    context: context,
-                    initialTime: TimeOfDay.now(),
-                  );
-                },
-                child: Text('Select Time'),
-              ),
-            ],
-          ),
+          title: Text(title),
+          content: SelectableText(message),
           actions: [
-            ElevatedButton(
-              onPressed: () async {
-                if (_nameController.text.isNotEmpty &&
-                    _selectedDate != null &&
-                    _selectedTime != null &&
-                    _descriptionController.text.isNotEmpty &&
-                    _locationController.text.isNotEmpty) {
-                  final eventTime = _selectedTime!.format(context);
-
-                  // Add the event to Firestore without a placeholder comment
-                  await _firestore.collection('events').add({
-                    'name': _nameController.text,
-                    'date': _selectedDate,
-                    'time': eventTime,
-                    'description': _descriptionController.text,
-                    'location': _locationController.text,
-                    'accepted': [],
-                    'creatorId': user.uid,
-                  });
-
-                  Navigator.pop(context);
-                } else {
-                  print("Please fill out all fields!");
-                }
-              },
-              child: Text('Post'),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('OK'),
             ),
           ],
+        );
+      },
+    );
+  }
+
+  void _createEvent(
+      BuildContext context, String userId, FirestoreService firestoreService) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final TextEditingController nameController = TextEditingController();
+        final TextEditingController descriptionController =
+            TextEditingController();
+        final TextEditingController locationController =
+            TextEditingController();
+        DateTime? selectedDate;
+        TimeOfDay? selectedTime;
+
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text('Create Event'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: nameController,
+                      decoration: InputDecoration(labelText: 'Event Name'),
+                    ),
+                    TextField(
+                      controller: descriptionController,
+                      decoration: InputDecoration(labelText: 'Description'),
+                    ),
+                    TextField(
+                      controller: locationController,
+                      decoration: InputDecoration(labelText: 'Location'),
+                    ),
+                    SizedBox(height: 10),
+
+                    // Date Picker
+                    ListTile(
+                      title: Text(selectedDate == null
+                          ? 'Select Date'
+                          : 'Date: ${selectedDate!.toLocal()}'.split(' ')[0]),
+                      trailing: Icon(Icons.calendar_today),
+                      onTap: () async {
+                        final pickedDate = await showDatePicker(
+                          context: context,
+                          initialDate: DateTime.now(),
+                          firstDate: DateTime.now(),
+                          lastDate: DateTime(2100),
+                        );
+                        if (pickedDate != null) {
+                          setState(() {
+                            selectedDate = pickedDate;
+                          });
+                        }
+                      },
+                    ),
+
+                    // Time Picker
+                    ListTile(
+                      title: Text(selectedTime == null
+                          ? 'Select Time'
+                          : 'Time: ${selectedTime!.format(context)}'),
+                      trailing: Icon(Icons.access_time),
+                      onTap: () async {
+                        final pickedTime = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.now(),
+                        );
+                        if (pickedTime != null) {
+                          setState(() {
+                            selectedTime = pickedTime;
+                          });
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    if (nameController.text.isNotEmpty &&
+                        descriptionController.text.isNotEmpty &&
+                        locationController.text.isNotEmpty &&
+                        selectedDate != null &&
+                        selectedTime != null) {
+                      // Convert TimeOfDay to a string format
+                      final formattedTime = selectedTime!.format(context);
+
+                      firestoreService.createEvent(
+                        nameController.text,
+                        descriptionController.text,
+                        locationController.text,
+                        selectedDate!,
+                        formattedTime,
+                        userId,
+                      );
+                      Navigator.pop(context);
+                    } else {
+                      // Show error if fields are missing
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Please fill in all fields')),
+                      );
+                    }
+                  },
+                  child: Text('Create'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -235,11 +328,69 @@ class EventPage extends StatelessWidget {
       await eventDoc.update({
         'accepted': FieldValue.arrayUnion([userId]),
       });
+
+      final eventSnapshot = await eventDoc.get();
+      final eventData = eventSnapshot.data();
+      if (eventData == null) return;
+
+      final eventName = eventData['name'];
+      final eventDescription = eventData['description'];
+      final eventLocation = eventData['location'];
+      final eventDate = (eventData['date'] as Timestamp).toDate();
+      final eventTime = eventData['time'];
+
+      final eventStartTime = _parseEventTime(eventDate, eventTime);
+      final eventEndTime = eventStartTime.add(Duration(hours: 1));
+
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final calendarId = userDoc.data()?['calendarId'];
+      if (calendarId == null) return;
+
+      final calendarService = CalendarService();
+      final gcalEventId = await calendarService.addEventToPrivateCalendar(
+        calendarId,
+        eventName,
+        eventStartTime,
+        eventEndTime,
+      );
+
+      await _firestore.collection('users').doc(userId).update({
+        'gcalEventMappings.$eventId': gcalEventId,
+      });
     } else {
       await eventDoc.update({
         'accepted': FieldValue.arrayRemove([userId]),
       });
+
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final calendarId = userDoc.data()?['calendarId'];
+      final gcalEventId = userDoc.data()?['gcalEventMappings']?[eventId];
+
+      if (calendarId != null && gcalEventId != null) {
+        final calendarService = CalendarService();
+        await calendarService.removeEventFromPrivateCalendar(
+            calendarId, gcalEventId);
+
+        await _firestore.collection('users').doc(userId).update({
+          'gcalEventMappings.$eventId': FieldValue.delete(),
+        });
+      }
     }
+  }
+
+  DateTime _parseEventTime(DateTime eventDate, String eventTime) {
+    final timeParts = eventTime.split(':');
+    final hour = int.parse(timeParts[0]);
+    final minute = int.parse(timeParts[1].split(' ')[0]);
+    final isPM = eventTime.toLowerCase().contains('pm');
+
+    return DateTime(
+      eventDate.year,
+      eventDate.month,
+      eventDate.day,
+      isPM ? (hour % 12) + 12 : hour,
+      minute,
+    );
   }
 
   void _deleteEvent(String eventId, BuildContext context) async {
@@ -262,6 +413,20 @@ class EventPage extends StatelessWidget {
     );
 
     if (confirmation == true) {
+      final userDoc = await _firestore.collection('users').doc(user.uid).get();
+      final calendarId = userDoc.data()?['calendarId'];
+      final gcalEventId = userDoc.data()?['gcalEventMappings']?[eventId];
+
+      if (calendarId != null && gcalEventId != null) {
+        final calendarService = CalendarService();
+        await calendarService.removeEventFromPrivateCalendar(
+            calendarId, gcalEventId);
+
+        await _firestore.collection('users').doc(user.uid).update({
+          'gcalEventMappings.$eventId': FieldValue.delete(),
+        });
+      }
+
       await _firestore.collection('events').doc(eventId).delete();
     }
   }
@@ -315,8 +480,7 @@ class __CommentSectionState extends State<_CommentSection> {
   String _formatTimestamp(Timestamp? timestamp) {
     if (timestamp == null) return 'Unknown time';
     final dateTime = timestamp.toDate();
-    return '${dateTime.toLocal()}'
-        .split('.')[0]; // Format as "YYYY-MM-DD HH:MM:SS"
+    return '${dateTime.toLocal()}'.split('.')[0];
   }
 
   @override
@@ -391,6 +555,7 @@ class __CommentSectionState extends State<_CommentSection> {
     );
   }
 }
+
 class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
