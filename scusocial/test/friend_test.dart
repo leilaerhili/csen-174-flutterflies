@@ -1,61 +1,118 @@
-import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
-import 'package:flutter_test/flutter_test.dart';
-import 'package:scusocial/services/firestore_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:firebase_auth_mocks/firebase_auth_mocks.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:scusocial/features/friends/friend-repo.dart';
 
 void main() {
-  group('Friend Request Tests', () {
-    late FakeFirebaseFirestore fakeFirestore;
-    late FirestoreService firestoreService;
+  late FakeFirebaseFirestore fakeFirestore;
+  late MockFirebaseAuth mockAuth;
+  late FriendRepository friendRepo;
 
-    setUp(() {
-      fakeFirestore = FakeFirebaseFirestore();
-      firestoreService = FirestoreService(firestore: fakeFirestore);
+  setUp(() {
+    fakeFirestore = FakeFirebaseFirestore();
+    mockAuth = MockFirebaseAuth(
+        signedIn: true, mockUser: MockUser(uid: 'testUser123'));
+    friendRepo = FriendRepository(auth: mockAuth, firestore: fakeFirestore);
+  });
+
+  test('Initialize user document if it does not exist', () async {
+    final userId = 'newUser456';
+    await friendRepo.initializeUserDocument(userId);
+
+    final userDoc = await fakeFirestore.collection('users').doc(userId).get();
+    expect(userDoc.exists, true);
+    expect(userDoc.data(), {
+      'uid': userId,
+      'friends': [],
+      'receivedRequests': [],
+      'sentRequests': [],
+      'buttonPressCount': 0,
     });
+  });
 
-    test('Send Friend Request', () async {
-      const String senderId = "testSender123";
-      const String receiverId = "testReceiver456";
+  test('Send a friend request', () async {
+    final targetUserId = 'friend456';
 
-      // Create test users
-      await fakeFirestore.collection('users').doc(senderId).set({
-        'sentRequests': [],
-        'receivedRequests': [],
-      });
+    await friendRepo.sendFriendRequest(userId: targetUserId);
 
-      await fakeFirestore.collection('users').doc(receiverId).set({
-        'sentRequests': [],
-        'receivedRequests': [],
-      });
+    final receiverDoc =
+        await fakeFirestore.collection('users').doc(targetUserId).get();
+    final senderDoc = await fakeFirestore
+        .collection('users')
+        .doc(mockAuth.currentUser!.uid)
+        .get();
 
-      // Send a friend request
-      await firestoreService.sendFriendRequest(senderId, receiverId);
+    expect(receiverDoc.data()?['receivedRequests'], contains('testUser123'));
+    expect(senderDoc.data()?['sentRequests'], contains(targetUserId));
+  });
 
-      // Fetch updated user data
-      final senderSnapshot = await fakeFirestore.collection('users').doc(senderId).get();
-      final receiverSnapshot = await fakeFirestore.collection('users').doc(receiverId).get();
+  test('Accept a friend request', () async {
+    final targetUserId = 'friend789';
 
-      // Verify that the friend request was sent and received correctly
-      expect(senderSnapshot.data()?['sentRequests'], contains(receiverId));
-      expect(receiverSnapshot.data()?['receivedRequests'], contains(senderId));
-    });
+    // Simulate sending a request
+    await friendRepo.sendFriendRequest(userId: targetUserId);
 
-    test('Send Friend Request to Non-Existent User', () async {
-      const String senderId = "testSender123";
-      const String nonExistentUserId = "nonExistentUser456";
+    // Accept friend request
+    await friendRepo.acceptFriendRequest(userId: targetUserId);
 
-      // Create test sender user
-      await fakeFirestore.collection('users').doc(senderId).set({
-        'sentRequests': [],
-        'receivedRequests': [],
-      });
+    final targetUserDoc =
+        await fakeFirestore.collection('users').doc(targetUserId).get();
+    final currentUserDoc = await fakeFirestore
+        .collection('users')
+        .doc(mockAuth.currentUser!.uid)
+        .get();
 
-      // Attempt to send a friend request to a non-existent user
-      expect(
-        () async => await firestoreService.sendFriendRequest(senderId, nonExistentUserId),
-        throwsException,
-      );
-    });
+    expect(targetUserDoc.data()?['friends'], contains('testUser123'));
+    expect(currentUserDoc.data()?['friends'], contains(targetUserId));
 
+    // Request should be removed after accepting
+    expect(targetUserDoc.data()?['receivedRequests'],
+        isNot(contains('testUser123')));
+    expect(
+        currentUserDoc.data()?['sentRequests'], isNot(contains(targetUserId)));
+  });
+
+  test('Remove a friend request', () async {
+    final targetUserId = 'friend101';
+
+    // Simulate sending a request
+    await friendRepo.sendFriendRequest(userId: targetUserId);
+
+    // Remove friend request
+    await friendRepo.removeFriendRequest(userId: targetUserId);
+
+    final targetUserDoc =
+        await fakeFirestore.collection('users').doc(targetUserId).get();
+    final currentUserDoc = await fakeFirestore
+        .collection('users')
+        .doc(mockAuth.currentUser!.uid)
+        .get();
+
+    expect(targetUserDoc.data()?['receivedRequests'],
+        isNot(contains('testUser123')));
+    expect(
+        currentUserDoc.data()?['sentRequests'], isNot(contains(targetUserId)));
+  });
+
+  test('Remove a friend', () async {
+    final targetUserId = 'friend202';
+
+    // Simulate adding as a friend
+    await friendRepo.sendFriendRequest(userId: targetUserId);
+    await friendRepo.acceptFriendRequest(userId: targetUserId);
+
+    // Remove friend
+    await friendRepo.removeFriend(userId: targetUserId);
+
+    final targetUserDoc =
+        await fakeFirestore.collection('users').doc(targetUserId).get();
+    final currentUserDoc = await fakeFirestore
+        .collection('users')
+        .doc(mockAuth.currentUser!.uid)
+        .get();
+
+    expect(targetUserDoc.data()?['friends'], isNot(contains('testUser123')));
+    expect(currentUserDoc.data()?['friends'], isNot(contains(targetUserId)));
   });
 }
