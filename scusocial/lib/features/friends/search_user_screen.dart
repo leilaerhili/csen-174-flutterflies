@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../friends/friend-repo.dart'; // Ensure this is the correct path
 
 class SearchUserScreen extends StatefulWidget {
@@ -13,6 +14,18 @@ class _SearchUserScreenState extends State<SearchUserScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<Map<String, dynamic>> _searchResults = [];
   bool _isLoading = false;
+
+  // Inject Firebase instances into FriendRepository
+  late final FriendRepository _friendRepo;
+
+  @override
+  void initState() {
+    super.initState();
+    _friendRepo = FriendRepository(
+      auth: FirebaseAuth.instance,
+      firestore: FirebaseFirestore.instance,
+    );
+  }
 
   // Function to search users by `fullName`
   void _searchUsers(String query) async {
@@ -95,8 +108,8 @@ class _SearchUserScreenState extends State<SearchUserScreen> {
                             icon: const Icon(Icons.person_add),
                             onPressed: () async {
                               // Send friend request using FriendRepository
-                              final friendRepo = FriendRepository();
-                              final result = await friendRepo.sendFriendRequest(
+                              final result =
+                                  await _friendRepo.sendFriendRequest(
                                 userId: user['uid'],
                               );
                               if (result == null) {
