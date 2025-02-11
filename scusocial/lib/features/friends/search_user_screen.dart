@@ -14,7 +14,7 @@ class _SearchUserScreenState extends State<SearchUserScreen> {
   List<Map<String, dynamic>> _searchResults = [];
   bool _isLoading = false;
 
-  // Function to search users by `fullName`
+  // Function to search users by fullName
   void _searchUsers(String query) async {
     if (query.isEmpty) {
       setState(() {
@@ -28,7 +28,7 @@ class _SearchUserScreenState extends State<SearchUserScreen> {
     });
 
     try {
-      // Query Firestore for users whose `fullName` matches or starts with the search input
+      // Query Firestore for users whose fullName matches or starts with the search input
       final snapshot = await FirebaseFirestore.instance
           .collection('users')
           .where('fullName', isGreaterThanOrEqualTo: query)
