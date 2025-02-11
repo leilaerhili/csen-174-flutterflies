@@ -46,4 +46,73 @@ void main() {
     expect(receiverDoc.data()?['receivedRequests'], contains('testUser123'));
     expect(senderDoc.data()?['sentRequests'], contains(targetUserId));
   });
+
+  test('Accept a friend request', () async {
+    final targetUserId = 'friend789';
+
+    // Simulate sending a request
+    await friendRepo.sendFriendRequest(userId: targetUserId);
+
+    // Accept friend request
+    await friendRepo.acceptFriendRequest(userId: targetUserId);
+
+    final targetUserDoc =
+        await fakeFirestore.collection('users').doc(targetUserId).get();
+    final currentUserDoc = await fakeFirestore
+        .collection('users')
+        .doc(mockAuth.currentUser!.uid)
+        .get();
+
+    expect(targetUserDoc.data()?['friends'], contains('testUser123'));
+    expect(currentUserDoc.data()?['friends'], contains(targetUserId));
+
+    // Request should be removed after accepting
+    expect(targetUserDoc.data()?['receivedRequests'],
+        isNot(contains('testUser123')));
+    expect(
+        currentUserDoc.data()?['sentRequests'], isNot(contains(targetUserId)));
+  });
+
+  test('Remove a friend request', () async {
+    final targetUserId = 'friend101';
+
+    // Simulate sending a request
+    await friendRepo.sendFriendRequest(userId: targetUserId);
+
+    // Remove friend request
+    await friendRepo.removeFriendRequest(userId: targetUserId);
+
+    final targetUserDoc =
+        await fakeFirestore.collection('users').doc(targetUserId).get();
+    final currentUserDoc = await fakeFirestore
+        .collection('users')
+        .doc(mockAuth.currentUser!.uid)
+        .get();
+
+    expect(targetUserDoc.data()?['receivedRequests'],
+        isNot(contains('testUser123')));
+    expect(
+        currentUserDoc.data()?['sentRequests'], isNot(contains(targetUserId)));
+  });
+
+  test('Remove a friend', () async {
+    final targetUserId = 'friend202';
+
+    // Simulate adding as a friend
+    await friendRepo.sendFriendRequest(userId: targetUserId);
+    await friendRepo.acceptFriendRequest(userId: targetUserId);
+
+    // Remove friend
+    await friendRepo.removeFriend(userId: targetUserId);
+
+    final targetUserDoc =
+        await fakeFirestore.collection('users').doc(targetUserId).get();
+    final currentUserDoc = await fakeFirestore
+        .collection('users')
+        .doc(mockAuth.currentUser!.uid)
+        .get();
+
+    expect(targetUserDoc.data()?['friends'], isNot(contains('testUser123')));
+    expect(currentUserDoc.data()?['friends'], isNot(contains(targetUserId)));
+  });
 }
