@@ -38,7 +38,11 @@ class _SignInPageState extends State<SignInPage> {
                 onPressed: _signInWithGoogle,
                 child: Text('Sign in with Google'),
               )
-            : EventPage(user: _user!, signOut: _signOut),
+            : EventPage(
+                user: _user!,
+                signOut: _signOut,
+                eventIsTesting: false,
+              ),
       ),
     );
   }
